@@ -15,8 +15,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
 parts/
 sdist/
 var/
@@ -29,6 +27,7 @@ venv/
 ENV/
 env/
 .venv
+# Note: frontend/lib is source code and should NOT be ignored
 
 # Testing
 .pytest_cache/
