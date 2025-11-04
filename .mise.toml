@@ -1,0 +1,12 @@
+# mise configuration for Recipe Manager
+# This file specifies the required runtime versions
+# mise will automatically use these versions when in this directory
+
+[tools]
+node = "24"
+python = "3.13"
+
+# To use these versions:
+# 1. Install mise: https://mise.jdx.dev/
+# 2. Run: mise install
+# 3. mise will automatically activate these versions in this directory

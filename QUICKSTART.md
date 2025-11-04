@@ -11,6 +11,23 @@ Make sure you have these tools installed first:
 - **Python 3.13+**
 - **Claude Code CLI**
 
+**Recommended: Use mise for Node/Python**
+
+This project includes `.mise.toml` for automatic version management:
+
+```bash
+# Install mise (if you don't have it)
+curl https://mise.run | sh
+
+# Install Node 24 and Python 3.13
+mise install
+
+# Verify versions
+mise current
+```
+
+See [README-MISE.md](README-MISE.md) for more details.
+
 **Quick check:**
 ```bash
 docker compose version  # Should show v2.x.x

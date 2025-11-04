@@ -45,6 +45,23 @@ Before starting, you'll need to install these tools:
 - **Claude Code CLI**
 - Basic understanding of REST APIs and web development
 
+**Quick Setup with mise (Recommended):**
+
+This project includes a `.mise.toml` file that automatically manages Node 24 and Python 3.13:
+
+```bash
+# Install mise
+curl https://mise.run | sh
+
+# Install Node 24 and Python 3.13
+mise install
+
+# Verify
+mise current
+```
+
+See [README-MISE.md](README-MISE.md) for detailed mise usage.
+
 ### Installing Prerequisites
 
 #### Option A: Using mise (Recommended for Node.js and Python)

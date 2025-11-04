@@ -4,14 +4,19 @@
 # Usage: make <target>
 # Example: make dev
 
-.PHONY: help setup install dev stop clean migrate test-backend test-frontend test lint logs shell-backend shell-db
+.PHONY: help setup check-versions install dev stop clean migrate test-backend test-frontend test lint logs shell-backend shell-db
 
 # Default target - show help
 help:
 	@echo "Recipe Manager - Available Make Targets"
 	@echo "========================================"
 	@echo ""
+	@echo "Prerequisites:"
+	@echo "  Requires Python 3.13+ and Node 24+"
+	@echo "  Recommended: Install mise (https://mise.jdx.dev/) and run 'mise install'"
+	@echo ""
 	@echo "Setup & Installation:"
+	@echo "  make check-versions  - Check if Python 3.13+ and Node 24+ are installed"
 	@echo "  make setup           - Initial project setup (create .env, prepare directories)"
 	@echo "  make install         - Install all dependencies (frontend & backend)"
 	@echo ""
@@ -62,12 +67,21 @@ setup:
 	fi
 	@echo "Setup complete!"
 
+# Check prerequisites
+check-versions:
+	@echo "Checking runtime versions..."
+	@command -v python3 >/dev/null 2>&1 || { echo "Error: python3 not found. Please install Python 3.13+"; echo "Recommended: Install mise (https://mise.jdx.dev/) and run 'mise install'"; exit 1; }
+	@command -v node >/dev/null 2>&1 || { echo "Error: node not found. Please install Node 24+"; echo "Recommended: Install mise (https://mise.jdx.dev/) and run 'mise install'"; exit 1; }
+	@echo "✓ Python: $$(python3 --version)"
+	@echo "✓ Node: $$(node --version)"
+	@echo ""
+
 # Install all dependencies
-install:
+install: check-versions
 	@echo "Installing dependencies..."
 	@if [ -d "backend" ]; then \
 		echo "Installing backend dependencies..."; \
-		cd backend && python -m venv venv && . venv/bin/activate && pip install -r requirements.txt; \
+		cd backend && python3 -m venv venv && . venv/bin/activate && pip install -r requirements.txt; \
 	else \
 		echo "Backend directory not found. Skipping backend installation."; \
 	fi
