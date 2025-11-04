@@ -7,11 +7,11 @@
 #   - frontend: Next.js React frontend
 #
 # Usage:
-#   docker-compose up -d    # Start all services in detached mode
-#   docker-compose down     # Stop all services
-#   docker-compose logs -f  # View logs
-
-version: '3.8'
+#   docker compose up -d    # Start all services in detached mode
+#   docker compose down     # Stop all services
+#   docker compose logs -f  # View logs
+#
+# Note: This file uses Docker Compose V2 syntax (docker compose, not docker-compose)
 
 services:
   # PostgreSQL Database

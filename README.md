@@ -37,11 +37,165 @@ We'll build a Recipe Manager application - a full-stack system that allows users
 
 ### Prerequisites
 
-- Docker and Docker Compose installed
-- Node.js 18+ and npm installed
-- Python 3.11+ installed
-- Claude Code CLI installed and configured
+Before starting, you'll need to install these tools:
+
+- **Docker Desktop** (includes Docker Compose V2)
+- **Node.js 18+** and **npm**
+- **Python 3.11+**
+- **Claude Code CLI**
 - Basic understanding of REST APIs and web development
+
+### Installing Prerequisites
+
+#### Option A: Using mise (Recommended for Node.js and Python)
+
+[mise](https://mise.jdx.dev/) is a modern runtime manager that simplifies installing Node.js and Python.
+
+**Install mise:**
+```bash
+# macOS/Linux
+curl https://mise.run | sh
+
+# Or with Homebrew (macOS)
+brew install mise
+
+# Add to your shell (follow mise's instructions)
+echo 'eval "$(mise activate bash)"' >> ~/.bashrc  # for bash
+echo 'eval "$(mise activate zsh)"' >> ~/.zshrc    # for zsh
+```
+
+**Install Node.js and Python with mise:**
+```bash
+# Install Node.js 18
+mise install node@18
+mise use -g node@18
+
+# Install Python 3.11
+mise install python@3.11
+mise use -g python@3.11
+
+# Verify installations
+node --version   # Should show v18.x.x
+python --version # Should show 3.11.x
+```
+
+**Using mise with this project:**
+```bash
+# Create .mise.toml in project root
+cat > .mise.toml << EOF
+[tools]
+node = "18"
+python = "3.11"
+EOF
+
+# mise will automatically use these versions when in the project directory
+mise install
+```
+
+#### Option B: Manual Installation
+
+#### Docker Desktop (includes Docker Compose V2)
+
+**macOS:**
+```bash
+# Download from Docker website
+open https://www.docker.com/products/docker-desktop
+
+# Or install with Homebrew
+brew install --cask docker
+```
+
+**Windows:**
+```bash
+# Download from Docker website
+start https://www.docker.com/products/docker-desktop
+
+# Or install with winget
+winget install Docker.DockerDesktop
+```
+
+**Linux:**
+```bash
+# Ubuntu/Debian
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Verify installation
+docker compose version  # Should show Docker Compose version v2.x.x
+```
+
+#### Node.js and npm
+
+**macOS:**
+```bash
+# Using Homebrew
+brew install node
+
+# Or download from nodejs.org
+open https://nodejs.org/
+```
+
+**Windows:**
+```bash
+# Using winget
+winget install OpenJS.NodeJS
+
+# Or download from nodejs.org
+start https://nodejs.org/
+```
+
+**Linux:**
+```bash
+# Using NodeSource repository (Ubuntu/Debian)
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Verify installation
+node --version  # Should show v18.x.x or higher
+npm --version
+```
+
+#### Python 3.11+
+
+**macOS:**
+```bash
+# Using Homebrew
+brew install python@3.11
+
+# Verify installation
+python3 --version  # Should show 3.11.x or higher
+```
+
+**Windows:**
+```bash
+# Using winget
+winget install Python.Python.3.11
+
+# Or download from python.org
+start https://www.python.org/downloads/
+```
+
+**Linux:**
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install python3.11 python3.11-venv python3-pip
+
+# Verify installation
+python3 --version  # Should show 3.11.x or higher
+```
+
+#### Claude Code CLI
+
+```bash
+# Install Claude Code CLI
+# Visit the official documentation for installation instructions:
+# https://docs.claude.com/claude-code
+
+# Verify installation
+claude --version
+```
 
 ### Branch Strategy
 
@@ -145,7 +299,7 @@ Create a complete docker-compose.yml that includes:
 Create a Makefile with the following targets:
 - 'make setup' - Initial setup (create .env from .env.example, install dependencies)
 - 'make install' - Install frontend and backend dependencies
-- 'make dev' - Start all services with docker-compose
+- 'make dev' - Start all services with Docker Compose
 - 'make stop' - Stop all services
 - 'make clean' - Clean up containers, volumes, and cache
 - 'make migrate' - Run database migrations
@@ -157,6 +311,7 @@ Create a Makefile with the following targets:
 - 'make shell-db' - Open a psql shell in the database
 
 Include helpful comments explaining what each target does.
+Use 'docker compose' (V2 syntax) not 'docker-compose' (V1 syntax).
 ```
 
 ### Prompt 8: Add Testing

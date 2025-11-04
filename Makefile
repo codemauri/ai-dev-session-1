@@ -82,7 +82,7 @@ install:
 # Start all services
 dev:
 	@echo "Starting all services with Docker Compose..."
-	docker-compose up -d
+	docker compose up -d
 	@echo ""
 	@echo "Services are starting up!"
 	@echo "Frontend:  http://localhost:3000"
@@ -94,20 +94,20 @@ dev:
 # Stop all services
 stop:
 	@echo "Stopping all services..."
-	docker-compose down
+	docker compose down
 
 # Restart all services
 restart: stop dev
 
 # View logs from all services
 logs:
-	docker-compose logs -f
+	docker compose logs -f
 
 # Run database migrations
 migrate:
 	@echo "Running database migrations..."
 	@if [ -d "backend" ]; then \
-		docker-compose exec backend alembic upgrade head; \
+		docker compose exec backend alembic upgrade head; \
 	else \
 		echo "Backend directory not found. Cannot run migrations."; \
 	fi
@@ -116,7 +116,7 @@ migrate:
 migrate-create:
 	@echo "Creating new migration..."
 	@read -p "Enter migration message: " message; \
-	docker-compose exec backend alembic revision --autogenerate -m "$$message"
+	docker compose exec backend alembic revision --autogenerate -m "$$message"
 
 # Run all tests
 test: test-backend test-frontend
@@ -125,7 +125,7 @@ test: test-backend test-frontend
 test-backend:
 	@echo "Running backend tests..."
 	@if [ -d "backend" ]; then \
-		docker-compose exec backend pytest -v; \
+		docker compose exec backend pytest -v; \
 	else \
 		echo "Backend directory not found. Cannot run tests."; \
 	fi
@@ -134,7 +134,7 @@ test-backend:
 test-frontend:
 	@echo "Running frontend tests..."
 	@if [ -d "frontend" ]; then \
-		docker-compose exec frontend npm test; \
+		docker compose exec frontend npm test; \
 	else \
 		echo "Frontend directory not found. Cannot run tests."; \
 	fi
@@ -144,11 +144,11 @@ lint:
 	@echo "Running linters..."
 	@if [ -d "backend" ]; then \
 		echo "Linting backend..."; \
-		docker-compose exec backend flake8 .; \
+		docker compose exec backend flake8 .; \
 	fi
 	@if [ -d "frontend" ]; then \
 		echo "Linting frontend..."; \
-		docker-compose exec frontend npm run lint; \
+		docker compose exec frontend npm run lint; \
 	fi
 
 # Format code
@@ -156,25 +156,25 @@ format:
 	@echo "Formatting code..."
 	@if [ -d "backend" ]; then \
 		echo "Formatting backend with black..."; \
-		docker-compose exec backend black .; \
+		docker compose exec backend black .; \
 	fi
 	@if [ -d "frontend" ]; then \
 		echo "Formatting frontend with prettier..."; \
-		docker-compose exec frontend npm run format; \
+		docker compose exec frontend npm run format; \
 	fi
 
 # Open a shell in the backend container
 shell-backend:
-	docker-compose exec backend /bin/bash
+	docker compose exec backend /bin/bash
 
 # Open a PostgreSQL shell
 shell-db:
-	docker-compose exec db psql -U recipe_user -d recipe_db
+	docker compose exec db psql -U recipe_user -d recipe_db
 
 # Clean up everything
 clean:
 	@echo "Cleaning up..."
-	docker-compose down -v
+	docker compose down -v
 	@if [ -d "backend/__pycache__" ]; then rm -rf backend/__pycache__; fi
 	@if [ -d "backend/.pytest_cache" ]; then rm -rf backend/.pytest_cache; fi
 	@if [ -d "frontend/.next" ]; then rm -rf frontend/.next; fi
