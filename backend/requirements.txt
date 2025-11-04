@@ -2,14 +2,14 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 
-# Database
-sqlalchemy==2.0.23
-psycopg2-binary==2.9.9
-alembic==1.12.1
+# Database (updated for Python 3.13 support)
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.3  # Using psycopg3 (has Python 3.13 support)
+alembic==1.13.3
 
-# Data validation
-pydantic==2.5.0
-pydantic-settings==2.1.0
+# Data validation (updated for Python 3.13 support)
+pydantic==2.10.6
+pydantic-settings==2.11.0
 
 # Environment variables
 python-dotenv==1.0.0
