@@ -1,335 +1,422 @@
-# Setup Guide
+# Setup Guide - Recipe Manager
 
 This guide will help you set up the Recipe Manager application on your local machine.
+
+---
+
+## Table of Contents
+
+1. [Prerequisites](#prerequisites)
+2. [Quick Start](#quick-start)
+3. [Detailed Setup](#detailed-setup)
+4. [Troubleshooting](#troubleshooting)
+5. [Next Steps](#next-steps)
+
+---
 
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
 
-- **Docker** (v20.10 or higher) and **Docker Compose** (v2.0 or higher)
-- **Node.js** (v18 or higher) and **npm**
-- **Python** (v3.11 or higher) and **pip**
+### Required
+
+- **Docker Desktop** (includes Docker Compose v2)
+  - macOS/Windows: https://www.docker.com/products/docker-desktop
+  - Linux: https://docs.docker.com/engine/install/
+  - Version: 20.10+ recommended
+
 - **Make** (usually pre-installed on macOS/Linux)
-- **Git** for version control
+  - macOS: Comes with Xcode Command Line Tools
+  - Windows: Install via `winget install GnuWin32.Make` or WSL
+  - Linux: Install via package manager (`sudo apt install make`)
+
+- **Git**
+  - Download: https://git-scm.com/downloads
+  - Version: 2.x+ recommended
+
+### Optional (for local development without Docker)
+
+- **Node.js 24+** and **npm**
+- **Python 3.13+**
+- **PostgreSQL 16+**
+
+**Recommended:** Use [mise](https://mise.jdx.dev/) for managing Node.js and Python versions (see `.mise.toml` in the project root).
+
+---
 
 ## Quick Start
 
-If you just want to get up and running quickly:
+Get up and running in 3 commands:
 
 ```bash
-# Clone the repository
-git clone <repository-url>
+# 1. Clone the repository
+git clone https://github.com/codemauri/ai-dev-session-1.git
 cd ai-dev-session-1
 
-# Initial setup
+# 2. Initial setup (creates .env, installs dependencies)
 make setup
 
-# Install dependencies
-make install
-
-# Start all services with Docker
+# 3. Start all services (database, backend, frontend)
 make dev
 ```
 
 That's it! The application should now be running:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Documentation: http://localhost:8000/docs
+
+- **Frontend:** http://localhost:3000
+- **Backend API:** http://localhost:8000
+- **API Docs:** http://localhost:8000/docs
+- **Database:** localhost:5432
+
+**First time?** You'll need to run database migrations:
+
+```bash
+make migrate
+```
+
+---
 
 ## Detailed Setup
 
-### 1. Clone the Repository
+### Step 1: Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/codemauri/ai-dev-session-1.git
 cd ai-dev-session-1
 ```
 
-### 2. Environment Configuration
+Or if you forked the repository:
 
-Create environment variables file:
+```bash
+git clone https://github.com/YOUR_USERNAME/ai-dev-session-1.git
+cd ai-dev-session-1
+```
+
+### Step 2: Environment Configuration
+
+The `make setup` command automatically creates a `.env` file from `.env.example`. If you want to customize it:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` if you need to change any default values:
+Edit `.env` with your preferred settings:
 
-```bash
+```env
 # Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
 DB_NAME=recipe_db
 DB_USER=recipe_user
 DB_PASSWORD=recipe_password
+DB_HOST=db
+DB_PORT=5432
 
-# Application Environment
-ENVIRONMENT=development
-NODE_ENV=development
-
-# API Configuration
-NEXT_PUBLIC_API_URL=http://localhost:8000
+# Database URL (used by backend)
+DATABASE_URL=postgresql+psycopg://recipe_user:recipe_password@db:5432/recipe_db
 ```
 
-### 3. Backend Setup
+**Note:** For local development with Docker, the default values work out of the box.
 
-#### Option A: Using Docker (Recommended)
+### Step 3: Install Dependencies
 
-Docker will handle everything automatically when you run `make dev`.
-
-#### Option B: Local Development
+#### Option A: Using Make (Recommended for Docker)
 
 ```bash
+make install
+```
+
+This installs:
+- Backend Python dependencies (`pip install -r backend/requirements.txt`)
+- Frontend npm packages (`npm install` in `frontend/`)
+
+#### Option B: Manual Installation
+
+**Backend:**
+```bash
 cd backend
-
-# Create virtual environment
 python -m venv venv
-
-# Activate virtual environment
-# On macOS/Linux:
-source venv/bin/activate
-# On Windows:
-# venv\Scripts\activate
-
-# Install dependencies
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
+```
 
-# Make sure PostgreSQL is running (via Docker or locally)
-# Then run migrations
-alembic upgrade head
+**Frontend:**
+```bash
+cd frontend
+npm install
+```
 
-# Start the development server
+### Step 4: Start the Application
+
+#### Option A: Using Docker Compose (Recommended)
+
+Start all services (PostgreSQL, Backend, Frontend):
+
+```bash
+make dev
+```
+
+This runs `docker compose up -d` in detached mode (background).
+
+**View logs:**
+```bash
+make logs
+```
+
+**Stop services:**
+```bash
+make stop
+```
+
+#### Option B: Manual Startup (without Docker)
+
+**Terminal 1 - Start PostgreSQL:**
+```bash
+docker compose up db
+```
+
+**Terminal 2 - Start Backend:**
+```bash
+cd backend
+source venv/bin/activate
 uvicorn main:app --reload --port 8000
 ```
 
-### 4. Frontend Setup
-
-#### Option A: Using Docker (Recommended)
-
-Docker will handle everything automatically when you run `make dev`.
-
-#### Option B: Local Development
-
+**Terminal 3 - Start Frontend:**
 ```bash
 cd frontend
-
-# Install dependencies
-npm install
-
-# Start the development server
 npm run dev
 ```
 
-The frontend will be available at http://localhost:3000.
+### Step 5: Run Database Migrations
 
-### 5. Database Setup
-
-#### Option A: Using Docker (Recommended)
-
-The database will start automatically with `docker-compose up`.
-
-#### Option B: Local PostgreSQL
-
-If you have PostgreSQL installed locally:
+Create the database tables:
 
 ```bash
-# Create the database
-createdb recipe_db
-
-# Create user (if needed)
-psql -c "CREATE USER recipe_user WITH PASSWORD 'recipe_password';"
-psql -c "GRANT ALL PRIVILEGES ON DATABASE recipe_db TO recipe_user;"
-
-# Run migrations
-cd backend
-alembic upgrade head
-```
-
-### 6. Running Migrations
-
-Migrations are handled by Alembic. To run migrations:
-
-```bash
-# Using Make
 make migrate
-
-# Or manually
-cd backend
-alembic upgrade head
 ```
 
-To create a new migration after model changes:
+Or manually:
 
 ```bash
-make migrate-create
-# Or manually:
-cd backend
-alembic revision --autogenerate -m "Description of changes"
+docker compose exec backend alembic upgrade head
 ```
 
-## Verification
+### Step 6: Verify Installation
 
-After setup, verify everything is working:
+1. Open http://localhost:3000 in your browser
+2. You should see the Recipe Manager home page
+3. Try creating a recipe to ensure everything works
 
-### 1. Check Backend Health
+**Check service health:**
 
 ```bash
+# Backend health check
 curl http://localhost:8000/health
+
+# View all running containers
+docker compose ps
 ```
 
-Should return:
-```json
-{"status": "healthy", "service": "recipe-manager-api"}
-```
+---
 
-### 2. Check API Documentation
+## Development Workflow
 
-Visit http://localhost:8000/docs to see the interactive API documentation.
-
-### 3. Check Frontend
-
-Open http://localhost:3000 in your browser. You should see the Recipe Manager home page.
-
-### 4. Run Tests
+### Daily Development
 
 ```bash
-# Backend tests
-make test-backend
+# Start the application
+make dev
 
-# Frontend tests
+# View logs (Ctrl+C to exit)
+make logs
+
+# Run tests
+make test-backend
 make test-frontend
 
-# All tests
-make test
+# Stop when done
+make stop
 ```
+
+### Making Changes
+
+**Backend changes:**
+- Edit files in `backend/`
+- Changes are hot-reloaded automatically (no restart needed)
+- If you modify `requirements.txt`, rebuild: `docker compose up -d --build backend`
+
+**Frontend changes:**
+- Edit files in `frontend/`
+- Changes are hot-reloaded automatically
+- If you modify `package.json`, rebuild: `docker compose up -d --build frontend`
+
+**Database migrations:**
+```bash
+# Create a new migration
+docker compose exec backend alembic revision --autogenerate -m "description"
+
+# Apply migrations
+make migrate
+```
+
+### Cleaning Up
+
+**Remove all containers and volumes (fresh start):**
+```bash
+make clean
+```
+
+**Reset database only:**
+```bash
+docker compose down -v  # Removes volumes
+docker compose up -d db
+make migrate
+```
+
+---
 
 ## Troubleshooting
 
 ### Port Already in Use
 
-If you get "port already in use" errors:
+**Error:** `port is already allocated`
 
+**Solution:**
 ```bash
-# Check what's using the ports
-lsof -i :3000  # Frontend
-lsof -i :8000  # Backend
-lsof -i :5432  # Database
+# Check what's using the port
+lsof -i :3000  # or :8000, :5432
 
-# Kill the process or change ports in docker-compose.yml
+# Stop the application
+make stop
+
+# Or change ports in docker-compose.yml
 ```
-
-### Database Connection Issues
-
-If backend can't connect to the database:
-
-1. Check if PostgreSQL is running:
-   ```bash
-   docker-compose ps
-   ```
-
-2. Check database logs:
-   ```bash
-   docker-compose logs db
-   ```
-
-3. Verify environment variables in `.env`
 
 ### Docker Issues
 
-If Docker containers aren't starting:
+**Error:** `Cannot connect to the Docker daemon`
 
+**Solution:**
+- Ensure Docker Desktop is running
+- Restart Docker Desktop
+- Check Docker status: `docker ps`
+
+### Database Connection Errors
+
+**Error:** `could not connect to server: Connection refused`
+
+**Solution:**
 ```bash
-# Stop all containers
-docker-compose down
+# Check if database is running
+docker compose ps
 
-# Remove volumes (WARNING: This deletes all data)
-docker-compose down -v
+# Restart database
+docker compose restart db
 
-# Rebuild containers
-docker-compose up --build
+# Check logs
+docker compose logs db
+```
+
+### Permission Errors (Linux)
+
+**Error:** `permission denied`
+
+**Solution:**
+```bash
+# Add user to docker group
+sudo usermod -aG docker $USER
+
+# Log out and back in, or run:
+newgrp docker
 ```
 
 ### Frontend Build Errors
 
-If you encounter frontend build errors:
+**Error:** `Module not found` or `Cannot find module`
 
+**Solution:**
 ```bash
+# Rebuild frontend container
+docker compose up -d --build frontend
+
+# Or manually reinstall
 cd frontend
-rm -rf node_modules .next
+rm -rf node_modules package-lock.json
 npm install
-npm run build
 ```
 
 ### Backend Import Errors
 
-If you get Python import errors:
+**Error:** `ModuleNotFoundError`
 
+**Solution:**
 ```bash
+# Rebuild backend container
+docker compose up -d --build backend
+
+# Or manually reinstall
 cd backend
-pip install -r requirements.txt --force-reinstall
+pip install -r requirements.txt
 ```
 
-## Development Workflow
+---
 
-### Making Changes
+## Running Tests
 
-1. **Frontend Changes**: Edit files in `frontend/`. Changes will hot-reload automatically.
-
-2. **Backend Changes**: Edit files in `backend/`. The server will restart automatically.
-
-3. **Database Changes**:
-   - Modify models in `backend/models.py`
-   - Create migration: `make migrate-create`
-   - Apply migration: `make migrate`
-
-### Running Tests
+### Backend Tests (pytest)
 
 ```bash
-# Watch mode (automatic rerun on changes)
-cd backend && pytest --watch
-cd frontend && npm test
+# All tests
+make test-backend
 
-# Single run
-make test
+# Specific test file
+docker compose exec backend pytest test_api.py -v
+
+# With coverage
+docker compose exec backend pytest --cov=. --cov-report=html
 ```
 
-### Code Quality
+### Frontend Tests (Jest)
 
 ```bash
-# Format code
-make format
+# All tests (CI mode)
+make test-frontend
 
-# Lint code
-make lint
+# Watch mode (for development)
+cd frontend
+npm run test
 ```
 
-## Production Deployment
+---
 
-For production deployment, you'll need to:
+## Next Steps
 
-1. Set `ENVIRONMENT=production` in `.env`
-2. Use a production-ready database (not SQLite)
-3. Set strong passwords and secrets
-4. Use a reverse proxy (nginx) for HTTPS
-5. Enable CORS only for your production domain
-6. Set up proper logging and monitoring
+Once setup is complete:
 
-See your hosting provider's documentation for specific deployment instructions.
+1. **Explore the API:** Visit http://localhost:8000/docs for interactive API documentation
+2. **Read Architecture:** See [ARCHITECTURE.md](ARCHITECTURE.md) to understand the system design
+3. **Start Developing:** See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines
+4. **Create Sample Data:** Use the frontend or API docs to add recipes and categories
+
+---
 
 ## Additional Resources
 
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Next.js Documentation](https://nextjs.org/docs)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-- [Docker Documentation](https://docs.docker.com/)
-- [Alembic Documentation](https://alembic.sqlalchemy.org/)
+- **API Documentation:** [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
+- **Architecture Overview:** [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Contributing Guide:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **FastAPI Docs:** https://fastapi.tiangolo.com/
+- **Next.js Docs:** https://nextjs.org/docs
+- **Docker Docs:** https://docs.docker.com/
+
+---
 
 ## Getting Help
 
-If you encounter issues:
+If you encounter issues not covered here:
 
-1. Check this setup guide
-2. Review the troubleshooting section
-3. Check the project's GitHub issues
-4. Consult the official documentation for each technology
-5. Ask for help in the project's discussion forum
+1. Check the [Troubleshooting](#troubleshooting) section
+2. Search existing [GitHub Issues](https://github.com/codemauri/ai-dev-session-1/issues)
+3. Create a new issue with error messages and steps to reproduce
+
+---
+
+**Happy Coding! 🚀**

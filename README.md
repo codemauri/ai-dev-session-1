@@ -251,6 +251,8 @@ Create a Python FastAPI backend in a 'backend' directory with:
 
 ### Prompt 3: Set Up PostgreSQL with Docker
 
+#### Original Version (Ambiguous):
+
 ```
 Create a PostgreSQL database setup:
 - Add PostgreSQL service to docker-compose.yml
@@ -261,6 +263,99 @@ Create a PostgreSQL database setup:
   - Category (id, name, description)
   - Ingredient (id, recipe_id, name, amount, unit)
 - Create Alembic migrations setup for database schema management
+```
+
+> **Note on Prompt Versions:**
+> During the first implementation of this tutorial, Prompt 3's final bullet point ("Create Alembic migrations setup") was interpreted as "configure the Alembic infrastructure" rather than "generate actual migration files." This ambiguity led to a non-functional migrations system - the tooling was installed and configured, but no migration files were created, leaving the database empty.
+>
+> The improved version below demonstrates how to write prompts that eliminate ambiguity by:
+> - Using specific commands instead of vague action words
+> - Breaking complex tasks into numbered sub-steps
+> - Including verification steps to confirm success
+> - Specifying expected outputs and file locations
+>
+> Both versions are provided for comparison to illustrate the importance of prompt precision in agentic programming.
+
+#### Improved Version (Explicit & Unambiguous):
+
+```
+Create a PostgreSQL database setup:
+
+1. Add PostgreSQL service to docker-compose.yml
+   - Use postgres:16-alpine image
+   - Set environment variables: POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+   - Create named volume 'postgres_data' for data persistence
+   - Expose port 5432
+   - Add health check using pg_isready
+
+2. Create environment configuration
+   - Create a .env file with database credentials:
+     - DB_HOST=db (Docker service name)
+     - DB_PORT=5432
+     - DB_NAME=recipe_db
+     - DB_USER=recipe_user
+     - DB_PASSWORD=recipe_password
+     - DATABASE_URL=postgresql+psycopg://recipe_user:recipe_password@db:5432/recipe_db
+
+3. Set up SQLAlchemy database connection in backend/database.py
+   - Import create_engine, declarative_base, sessionmaker from sqlalchemy
+   - Read DATABASE_URL from environment using python-dotenv
+   - Create engine with DATABASE_URL
+   - Create SessionLocal for database sessions
+   - Create Base for model declarations
+   - Add get_db() dependency function for FastAPI
+
+4. Create SQLAlchemy models in backend/models.py:
+   - Recipe model with columns: id (PK), title, description, instructions, prep_time, cook_time, servings, category_id (FK), created_at, updated_at
+   - Category model with columns: id (PK), name, description
+   - Ingredient model with columns: id (PK), recipe_id (FK), name, amount, unit
+   - Define relationships: Recipe.category, Recipe.ingredients, Category.recipes
+   - Add __repr__ methods for debugging
+
+5. Set up Alembic for database migrations:
+   a. Install Alembic: Add 'alembic>=1.12.0' to requirements.txt
+
+   b. Initialize Alembic structure:
+      - Run: `cd backend && alembic init alembic`
+      - This creates: alembic/, alembic.ini, alembic/env.py, alembic/versions/
+
+   c. Configure alembic/env.py:
+      - Add imports: from database import Base, and import models
+      - Set: target_metadata = Base.metadata
+      - Load .env and set sqlalchemy.url from environment:
+        config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
+
+   d. Generate initial migration file:
+      - Ensure Docker services are running: `docker compose up -d db`
+      - Run: `docker compose exec backend alembic revision --autogenerate -m "Initial schema - create recipes, categories, ingredients tables"`
+      - Verify: Check that a new file appears in backend/alembic/versions/ (format: XXXX_initial_schema.py)
+      - Open the file and verify it contains:
+        * op.create_table('categories', ...) with columns: id, name, description
+        * op.create_table('recipes', ...) with columns: id, title, description, instructions, prep_time, cook_time, servings, category_id, created_at, updated_at
+        * op.create_table('ingredients', ...) with columns: id, recipe_id, name, amount, unit
+        * Foreign key constraints for recipe_id and category_id
+
+   e. Test the migration system:
+      - Apply migration: `docker compose exec backend alembic upgrade head`
+      - Verify tables exist: `docker compose exec db psql -U recipe_user -d recipe_db -c "\dt"`
+      - You should see: categories, recipes, ingredients, alembic_version tables
+      - Test rollback: `docker compose exec backend alembic downgrade base`
+      - Verify tables removed: `docker compose exec db psql -U recipe_user -d recipe_db -c "\dt"`
+      - Re-apply: `docker compose exec backend alembic upgrade head`
+
+   f. Document migration commands:
+      - Add comments in alembic.ini explaining common commands
+      - Note: Migration commands will later be added to Makefile in Prompt 7
+
+6. Verification checklist:
+   - [ ] PostgreSQL container starts and passes health check
+   - [ ] backend/database.py successfully imports and creates engine
+   - [ ] backend/models.py defines all three models with relationships
+   - [ ] backend/alembic/versions/ contains at least one migration file
+   - [ ] Migration file contains CREATE TABLE statements for all three tables
+   - [ ] Running `alembic upgrade head` creates tables in database
+   - [ ] Running `alembic current` shows the current migration version
+   - [ ] Can connect to database: `psql -h localhost -U recipe_user -d recipe_db` (password: recipe_password)
 ```
 
 ### Prompt 4: Implement REST API Endpoints

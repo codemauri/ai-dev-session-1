@@ -1,20 +1,74 @@
-# Docker Compose Configuration for Recipe Manager
-# This is a stub file - complete this using the prompts in README.md
-
 version: '3.8'
 
 services:
-  # TODO: Add PostgreSQL database service (see Prompt 3)
-  # db:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: recipe-manager-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-recipe_db}
+      POSTGRES_USER: ${DB_USER:-recipe_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-recipe_password}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-recipe_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # TODO: Add backend service (see Prompt 6)
-  # backend:
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: recipe-manager-backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://${DB_USER:-recipe_user}:${DB_PASSWORD:-recipe_password}@db:5432/${DB_NAME:-recipe_db}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
 
-  # TODO: Add frontend service (see Prompt 6)
-  # frontend:
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: recipe-manager-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
 
-# TODO: Add volumes
-# volumes:
+volumes:
+  postgres_data:
 
-# TODO: Add networks
-# networks:
+networks:
+  default:
+    name: recipe-manager-network
