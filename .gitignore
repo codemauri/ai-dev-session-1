@@ -83,3 +83,12 @@ logs/
 Thumbs.db
 .Spotlight-V100
 .Trashes
+
+# User uploads (runtime data, not source code)
+backend/uploads/
+
+# Temporary development files
+*.backup
+*.bak
+fix_*.py
+update_*.py
