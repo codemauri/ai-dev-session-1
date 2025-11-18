@@ -92,7 +92,7 @@ describe('NewRecipe - Image Upload', () => {
       });
 
       const urlInput = screen.getByLabelText(/Image URL/i);
-      expect(urlInput).toHaveAttribute('type', 'url');
+      expect(urlInput).toHaveAttribute('type', 'text');
       expect(urlInput).toHaveAttribute('placeholder', 'https://example.com/recipe-image.jpg');
     });
 

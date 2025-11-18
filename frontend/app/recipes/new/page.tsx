@@ -249,7 +249,7 @@ export default function NewRecipe() {
                   Image URL (Optional)
                 </label>
                 <input
-                  type="url"
+                  type="text"
                   id="imageUrl"
                   value={imageUrl}
                   onChange={(e) => setImageUrl(e.target.value)}

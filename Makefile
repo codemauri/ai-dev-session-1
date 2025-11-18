@@ -1,7 +1,7 @@
 # Makefile for Recipe Manager Application
 # Use 'make help' to see all available commands
 
-.PHONY: help setup install dev stop clean migrate test-backend test-frontend test-image-upload test-search test-all lint logs shell-backend shell-db
+.PHONY: help setup install dev stop clean migrate test-backend test-frontend test-image-upload test-search test-auth test-admin test-all lint logs shell-backend shell-db
 
 # Default target - show help
 help:
@@ -19,11 +19,13 @@ help:
 	@echo "  make migrate        - Run database migrations"
 	@echo ""
 	@echo "Testing:"
-	@echo "  make test-backend      - Run all backend tests (pytest)"
-	@echo "  make test-frontend     - Run all frontend tests (Jest)"
+	@echo "  make test-backend      - Run all backend tests (150 tests: API + model)"
+	@echo "  make test-frontend     - Run all frontend tests (248 tests: Jest)"
 	@echo "  make test-image-upload - Run image upload tests only (backend + frontend)"
 	@echo "  make test-search       - Run full-text search tests (backend)"
-	@echo "  make test-all          - Run all tests (backend + frontend)"
+	@echo "  make test-auth         - Run authentication tests (backend + frontend)"
+	@echo "  make test-admin        - Run admin management tests (backend)"
+	@echo "  make test-all          - Run all tests (398 total: backend + frontend)"
 	@echo "  make lint              - Run linters for both frontend and backend"
 	@echo ""
 	@echo "Utilities:"
@@ -129,6 +131,59 @@ test-search:
 	@docker compose exec backend pytest test_api.py::TestFullTextSearch -v
 	@echo ""
 	@echo "✓ Full-text search tests complete"
+
+# Run authentication tests (backend + frontend)
+test-auth:
+	@echo "Running authentication tests..."
+	@echo ""
+	@echo "Backend Authentication Tests:"
+	@echo "------------------------------"
+	@docker compose exec backend pytest test_api.py::TestAuthentication -v
+	@echo ""
+	@echo "Frontend Authentication Tests (API):"
+	@echo "-------------------------------------"
+	@docker compose exec frontend npm test -- lib/__tests__/api.test.ts --testNamePattern="tokenManager|authApi"
+	@echo ""
+	@echo "Frontend Authentication Tests (Login Page):"
+	@echo "--------------------------------------------"
+	@docker compose exec frontend npm test -- app/login/__tests__/page.test.tsx
+	@echo ""
+	@echo "Frontend Authentication Tests (Register Page):"
+	@echo "-----------------------------------------------"
+	@docker compose exec frontend npm test -- app/register/__tests__/page.test.tsx
+	@echo ""
+	@echo "Frontend Authentication Tests (Navigation):"
+	@echo "--------------------------------------------"
+	@docker compose exec frontend npm test -- components/__tests__/Navigation.test.tsx
+	@echo ""
+	@echo "✓ All authentication tests complete"
+
+# Run admin management tests (backend)
+test-admin:
+	@echo "Running admin management tests..."
+	@echo ""
+	@echo "Admin Stats Tests:"
+	@echo "------------------"
+	@docker compose exec backend pytest test_api.py::TestAdminEndpoints::test_get_admin_stats -v
+	@docker compose exec backend pytest test_api.py::TestAdminEndpoints::test_get_admin_stats_requires_admin -v
+	@echo ""
+	@echo "Admin User Management Tests:"
+	@echo "-----------------------------"
+	@docker compose exec backend pytest test_api.py::TestAdminEndpoints -v -k "user"
+	@echo ""
+	@echo "Admin Resource Management Tests:"
+	@echo "---------------------------------"
+	@docker compose exec backend pytest test_api.py::TestAdminEndpoints -v -k "recipe or meal"
+	@echo ""
+	@echo "Password Change Tests:"
+	@echo "----------------------"
+	@docker compose exec backend pytest test_api.py::TestPasswordChange -v
+	@echo ""
+	@echo "Cascade Delete Tests:"
+	@echo "---------------------"
+	@docker compose exec backend pytest test_api.py::TestCascadeDelete -v
+	@echo ""
+	@echo "✓ All admin management tests complete (19 admin + 3 password + 4 cascade = 26 tests)"
 
 # Run all tests (backend + frontend)
 test-all:

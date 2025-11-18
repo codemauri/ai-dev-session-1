@@ -27,6 +27,9 @@ services:
     container_name: recipe-manager-backend
     environment:
       DATABASE_URL: postgresql+psycopg://${DB_USER:-recipe_user}:${DB_PASSWORD:-recipe_password}@db:5432/${DB_NAME:-recipe_db}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-secret-key-here-change-in-production-min-32-chars-long}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-30}
     ports:
       - "8000:8000"
     volumes:

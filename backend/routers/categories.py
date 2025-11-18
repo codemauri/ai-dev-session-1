@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from database import get_db
+from auth import get_current_user
 import models
 import schemas
 
@@ -17,26 +18,31 @@ router = APIRouter(
 def list_categories(
     skip: int = 0,
     limit: int = 100,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    List all categories
+    List all categories for the current user
     """
-    categories = db.query(models.Category).offset(skip).limit(limit).all()
+    categories = db.query(models.Category).filter(
+        models.Category.user_id == current_user.id
+    ).offset(skip).limit(limit).all()
     return categories
 
 
 @router.post("/", response_model=schemas.Category, status_code=status.HTTP_201_CREATED)
 def create_category(
     category: schemas.CategoryCreate,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Create a new category
+    Create a new category for the current user
     """
-    # Check if category with same name already exists
+    # Check if category with same name already exists for this user
     existing_category = db.query(models.Category).filter(
-        models.Category.name == category.name
+        models.Category.name == category.name,
+        models.Category.user_id == current_user.id
     ).first()
 
     if existing_category:
@@ -45,7 +51,10 @@ def create_category(
             detail=f"Category with name '{category.name}' already exists"
         )
 
-    db_category = models.Category(**category.model_dump())
+    db_category = models.Category(
+        **category.model_dump(),
+        user_id=current_user.id
+    )
     db.add(db_category)
 
     try:
@@ -63,12 +72,16 @@ def create_category(
 @router.get("/{category_id}", response_model=schemas.Category)
 def get_category(
     category_id: int,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get a specific category by ID
+    Get a specific category by ID (must be owned by current user)
     """
-    category = db.query(models.Category).filter(models.Category.id == category_id).first()
+    category = db.query(models.Category).filter(
+        models.Category.id == category_id,
+        models.Category.user_id == current_user.id
+    ).first()
 
     if not category:
         raise HTTPException(
@@ -83,12 +96,16 @@ def get_category(
 def update_category(
     category_id: int,
     category_update: schemas.CategoryUpdate,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Update a category
+    Update a category (must be owned by current user)
     """
-    db_category = db.query(models.Category).filter(models.Category.id == category_id).first()
+    db_category = db.query(models.Category).filter(
+        models.Category.id == category_id,
+        models.Category.user_id == current_user.id
+    ).first()
 
     if not db_category:
         raise HTTPException(
@@ -97,7 +114,7 @@ def update_category(
         )
 
     # Update category fields
-    for field, value in category_update.model_dump().items():
+    for field, value in category_update.model_dump(exclude_unset=True).items():
         setattr(db_category, field, value)
 
     try:
@@ -115,12 +132,16 @@ def update_category(
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_category(
     category_id: int,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Delete a category
+    Delete a category (must be owned by current user)
     """
-    db_category = db.query(models.Category).filter(models.Category.id == category_id).first()
+    db_category = db.query(models.Category).filter(
+        models.Category.id == category_id,
+        models.Category.user_id == current_user.id
+    ).first()
 
     if not db_category:
         raise HTTPException(

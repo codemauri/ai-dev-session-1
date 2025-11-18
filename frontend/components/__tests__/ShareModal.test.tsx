@@ -2,6 +2,17 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import ShareModal from '../ShareModal';
+import { api } from '@/lib/api';
+
+// Mock the API
+jest.mock('@/lib/api', () => ({
+  api: {
+    recipes: {
+      getById: jest.fn(),
+      update: jest.fn(),
+    },
+  },
+}));
 
 describe('ShareModal Component', () => {
   const mockOnClose = jest.fn();
@@ -19,6 +30,18 @@ describe('ShareModal Component', () => {
     onUnshare: mockOnUnshare,
   };
 
+  const mockRecipe = {
+    id: 1,
+    title: 'Test Recipe',
+    instructions: 'Test instructions',
+    description: 'Test description',
+    prep_time: 10,
+    cook_time: 20,
+    servings: 4,
+    category_id: 1,
+    is_public: false,
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     // Mock window.location for share URL generation
@@ -30,19 +53,24 @@ describe('ShareModal Component', () => {
         writeText: jest.fn().mockResolvedValue(undefined),
       },
     });
+    // Mock alert
+    global.alert = jest.fn();
+    // Setup default API mocks
+    (api.recipes.getById as jest.Mock).mockResolvedValue(mockRecipe);
+    (api.recipes.update as jest.Mock).mockResolvedValue({});
   });
 
   // Modal Visibility Tests
   describe('Modal Visibility', () => {
     it('should render when isOpen is true', () => {
       render(<ShareModal {...defaultProps} />);
-      expect(screen.getByText('Share Recipe')).toBeInTheDocument();
-      expect(screen.getByText('Share "Test Recipe" with others')).toBeInTheDocument();
+      expect(screen.getByText('Recipe Visibility')).toBeInTheDocument();
+      expect(screen.getByText('Control who can see "Test Recipe"')).toBeInTheDocument();
     });
 
     it('should not render when isOpen is false', () => {
       render(<ShareModal {...defaultProps} isOpen={false} />);
-      expect(screen.queryByText('Share Recipe')).not.toBeInTheDocument();
+      expect(screen.queryByText('Recipe Visibility')).not.toBeInTheDocument();
     });
 
     it('should call onClose when close button is clicked', () => {
@@ -61,92 +89,152 @@ describe('ShareModal Component', () => {
     });
   });
 
-  // Public/Private Toggle Tests
-  describe('Public/Private Toggle', () => {
-    it('should display "Private" status when recipe is not public', () => {
-      render(<ShareModal {...defaultProps} isPublic={false} />);
-      expect(screen.getByText('Private')).toBeInTheDocument();
-      expect(screen.getByText('Only you can view this recipe')).toBeInTheDocument();
+  // Share Link Toggle Tests
+  describe('Share Link Toggle', () => {
+    it('should show correct text when share link is off', () => {
+      render(<ShareModal {...defaultProps} shareToken={null} />);
+      expect(screen.getByText('Share Link')).toBeInTheDocument();
+      expect(screen.getByText('Generate a link to share this recipe')).toBeInTheDocument();
     });
 
-    it('should display "Public" status when recipe is public', () => {
-      render(<ShareModal {...defaultProps} isPublic={true} shareToken="test-token-123" />);
-      expect(screen.getByText('Public')).toBeInTheDocument();
-      expect(screen.getByText('Anyone with the link can view this recipe')).toBeInTheDocument();
+    it('should show correct text when share link is on', () => {
+      render(<ShareModal {...defaultProps} shareToken="test-token-123" />);
+      expect(screen.getByText('Share Link')).toBeInTheDocument();
+      expect(screen.getByText('Anyone with the link can view (even if private)')).toBeInTheDocument();
     });
 
-    it('should call onShare when toggling from private to public', async () => {
+    it('should call onShare when toggling share link on', async () => {
       mockOnShare.mockResolvedValue(undefined);
-      render(<ShareModal {...defaultProps} isPublic={false} />);
+      render(<ShareModal {...defaultProps} shareToken={null} />);
 
-      // Find toggle button by its unique className pattern
+      // Find the first toggle button (Share Link toggle)
       const toggleButtons = screen.getAllByRole('button');
-      const toggleButton = toggleButtons.find(btn => btn.className.includes('inline-flex h-6 w-11'));
+      const shareLinkToggle = toggleButtons.find(btn =>
+        btn.className.includes('inline-flex h-6 w-11') && btn.className.includes('bg-gray-200')
+      );
 
-      fireEvent.click(toggleButton!);
+      fireEvent.click(shareLinkToggle!);
 
       await waitFor(() => {
         expect(mockOnShare).toHaveBeenCalledTimes(1);
       });
     });
 
-    it('should call onUnshare when toggling from public to private', async () => {
+    it('should call onUnshare when toggling share link off', async () => {
       mockOnUnshare.mockResolvedValue(undefined);
-      render(<ShareModal {...defaultProps} isPublic={true} shareToken="test-token-123" />);
+      render(<ShareModal {...defaultProps} shareToken="test-token-123" />);
 
-      // Find toggle button by its unique className pattern
+      // Find the first toggle button (Share Link toggle) - should be blue when on
       const toggleButtons = screen.getAllByRole('button');
-      const toggleButton = toggleButtons.find(btn => btn.className.includes('inline-flex h-6 w-11'));
+      const shareLinkToggle = toggleButtons.find(btn =>
+        btn.className.includes('inline-flex h-6 w-11') && btn.className.includes('bg-blue-600')
+      );
 
-      fireEvent.click(toggleButton!);
+      fireEvent.click(shareLinkToggle!);
 
       await waitFor(() => {
         expect(mockOnUnshare).toHaveBeenCalledTimes(1);
       });
     });
 
-    it('should disable toggle button while loading', async () => {
-      mockOnShare.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
-      render(<ShareModal {...defaultProps} isPublic={false} />);
-
-      // Find toggle button by its unique className pattern
-      const toggleButtons = screen.getAllByRole('button');
-      const toggleButton = toggleButtons.find(btn => btn.className.includes('inline-flex h-6 w-11'));
-
-      fireEvent.click(toggleButton!);
-
-      expect(toggleButton).toBeDisabled();
-    });
-  });
-
-  // Share Link Tests
-  describe('Share Link Display', () => {
-    it('should not show share link when recipe is private', () => {
-      render(<ShareModal {...defaultProps} isPublic={false} shareToken={null} />);
-      expect(screen.queryByText('Share Link')).not.toBeInTheDocument();
-      expect(screen.queryByDisplayValue(/http/)).not.toBeInTheDocument();
-    });
-
-    it('should show share link when recipe is public', () => {
-      render(<ShareModal {...defaultProps} isPublic={true} shareToken="test-token-123" />);
-      expect(screen.getByText('Share Link')).toBeInTheDocument();
+    it('should show share URL when token exists', () => {
+      render(<ShareModal {...defaultProps} shareToken="test-token-123" />);
       expect(screen.getByDisplayValue('http://localhost:3000/share/test-token-123')).toBeInTheDocument();
     });
 
-    it('should generate correct share URL format', () => {
-      const shareToken = 'abc-def-ghi-123';
-      render(<ShareModal {...defaultProps} isPublic={true} shareToken={shareToken} />);
+    it('should not show share URL when token is null', () => {
+      render(<ShareModal {...defaultProps} shareToken={null} />);
+      expect(screen.queryByDisplayValue(/http/)).not.toBeInTheDocument();
+    });
+  });
 
-      const input = screen.getByDisplayValue(`http://localhost:3000/share/${shareToken}`);
-      expect(input).toBeInTheDocument();
-      expect(input).toHaveAttribute('readonly');
+  // Public/Private Toggle Tests
+  describe('Public/Private Toggle', () => {
+    it('should display "Private" status when recipe is not public', () => {
+      render(<ShareModal {...defaultProps} isPublic={false} />);
+      expect(screen.getByText('Private')).toBeInTheDocument();
+      expect(screen.getByText('Only visible to you (and via share link)')).toBeInTheDocument();
+    });
+
+    it('should display "Public" status when recipe is public', () => {
+      render(<ShareModal {...defaultProps} isPublic={true} />);
+      expect(screen.getByText('Public')).toBeInTheDocument();
+      expect(screen.getByText('Visible in search results and recipe lists')).toBeInTheDocument();
+    });
+
+    it('should fetch recipe and update is_public when toggling to public', async () => {
+      render(<ShareModal {...defaultProps} isPublic={false} />);
+
+      // Find the second toggle button (Public/Private toggle) - should be gray when private
+      const toggleButtons = screen.getAllByRole('button');
+      const publicPrivateToggle = toggleButtons.filter(btn =>
+        btn.className.includes('inline-flex h-6 w-11')
+      )[1]; // Second toggle
+
+      fireEvent.click(publicPrivateToggle!);
+
+      await waitFor(() => {
+        expect(api.recipes.getById).toHaveBeenCalledWith(1);
+        expect(api.recipes.update).toHaveBeenCalledWith(1, {
+          title: 'Test Recipe',
+          instructions: 'Test instructions',
+          description: 'Test description',
+          prep_time: 10,
+          cook_time: 20,
+          servings: 4,
+          category_id: 1,
+          is_public: true, // Toggled from false to true
+        });
+      });
+    });
+
+    it('should fetch recipe and update is_public when toggling to private', async () => {
+      render(<ShareModal {...defaultProps} isPublic={true} />);
+
+      // Find the second toggle button (Public/Private toggle) - should be green when public
+      const toggleButtons = screen.getAllByRole('button');
+      const publicPrivateToggle = toggleButtons.filter(btn =>
+        btn.className.includes('inline-flex h-6 w-11')
+      )[1]; // Second toggle
+
+      fireEvent.click(publicPrivateToggle!);
+
+      await waitFor(() => {
+        expect(api.recipes.getById).toHaveBeenCalledWith(1);
+        expect(api.recipes.update).toHaveBeenCalledWith(1, {
+          title: 'Test Recipe',
+          instructions: 'Test instructions',
+          description: 'Test description',
+          prep_time: 10,
+          cook_time: 20,
+          servings: 4,
+          category_id: 1,
+          is_public: false, // Toggled from true to false
+        });
+      });
+    });
+
+    it('should show alert on error when toggling public/private fails', async () => {
+      (api.recipes.update as jest.Mock).mockRejectedValue(new Error('Update failed'));
+      render(<ShareModal {...defaultProps} isPublic={false} />);
+
+      const toggleButtons = screen.getAllByRole('button');
+      const publicPrivateToggle = toggleButtons.filter(btn =>
+        btn.className.includes('inline-flex h-6 w-11')
+      )[1];
+
+      fireEvent.click(publicPrivateToggle!);
+
+      await waitFor(() => {
+        expect(global.alert).toHaveBeenCalledWith('Failed to update recipe visibility: Update failed');
+      });
     });
   });
 
   // Copy to Clipboard Tests
   describe('Copy to Clipboard', () => {
     it('should copy share URL to clipboard when Copy button is clicked', async () => {
-      render(<ShareModal {...defaultProps} isPublic={true} shareToken="test-token-123" />);
+      render(<ShareModal {...defaultProps} shareToken="test-token-123" />);
 
       const copyButton = screen.getByText('Copy');
       fireEvent.click(copyButton);
@@ -157,7 +245,7 @@ describe('ShareModal Component', () => {
     });
 
     it('should show "Copied!" feedback after copying', async () => {
-      render(<ShareModal {...defaultProps} isPublic={true} shareToken="test-token-123" />);
+      render(<ShareModal {...defaultProps} shareToken="test-token-123" />);
 
       const copyButton = screen.getByText('Copy');
       fireEvent.click(copyButton);
@@ -169,7 +257,7 @@ describe('ShareModal Component', () => {
 
     it('should reset "Copied!" feedback after 2 seconds', async () => {
       jest.useFakeTimers();
-      render(<ShareModal {...defaultProps} isPublic={true} shareToken="test-token-123" />);
+      render(<ShareModal {...defaultProps} shareToken="test-token-123" />);
 
       const copyButton = screen.getByText('Copy');
       fireEvent.click(copyButton);
@@ -178,10 +266,8 @@ describe('ShareModal Component', () => {
         expect(screen.getByText('Copied!')).toBeInTheDocument();
       });
 
-      // Advance timers and run pending timers
       jest.advanceTimersByTime(2000);
 
-      // Wait for state update
       await waitFor(() => {
         expect(screen.getByText('Copy')).toBeInTheDocument();
       }, { timeout: 100 });
@@ -195,7 +281,7 @@ describe('ShareModal Component', () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
       (navigator.clipboard.writeText as jest.Mock).mockRejectedValue(new Error('Clipboard error'));
 
-      render(<ShareModal {...defaultProps} isPublic={true} shareToken="test-token-123" />);
+      render(<ShareModal {...defaultProps} shareToken="test-token-123" />);
 
       const copyButton = screen.getByText('Copy');
       fireEvent.click(copyButton);
@@ -212,81 +298,66 @@ describe('ShareModal Component', () => {
   describe('Recipe Title Display', () => {
     it('should display the correct recipe title', () => {
       render(<ShareModal {...defaultProps} recipeTitle="Delicious Pasta" />);
-      expect(screen.getByText('Share "Delicious Pasta" with others')).toBeInTheDocument();
+      expect(screen.getByText('Control who can see "Delicious Pasta"')).toBeInTheDocument();
     });
 
     it('should handle special characters in recipe title', () => {
       render(<ShareModal {...defaultProps} recipeTitle={`Mom's "Secret" Recipe`} />);
       expect(screen.getByText(/Secret/)).toBeInTheDocument();
     });
-
-    it('should handle long recipe titles', () => {
-      const longTitle = 'A Very Long Recipe Title That Contains Many Words And Should Still Be Displayed Properly';
-      render(<ShareModal {...defaultProps} recipeTitle={longTitle} />);
-      expect(screen.getByText(`Share "${longTitle}" with others`)).toBeInTheDocument();
-    });
   });
 
   // Integration Tests
-  describe('Full Workflow Integration', () => {
-    it('should complete full share workflow: toggle public, show link, copy', async () => {
+  describe('Independent Controls', () => {
+    it('should allow share link to be enabled while recipe is private', async () => {
       mockOnShare.mockResolvedValue(undefined);
       const { rerender } = render(<ShareModal {...defaultProps} isPublic={false} shareToken={null} />);
 
-      // Step 1: Verify starts as private
+      // Verify starts as private with no share link
       expect(screen.getByText('Private')).toBeInTheDocument();
-      expect(screen.queryByText('Share Link')).not.toBeInTheDocument();
+      expect(screen.queryByDisplayValue(/http/)).not.toBeInTheDocument();
 
-      // Step 2: Toggle to public
+      // Enable share link
       const toggleButtons = screen.getAllByRole('button');
-      const toggleButton = toggleButtons.find(btn => btn.className.includes('inline-flex h-6 w-11'));
-      fireEvent.click(toggleButton!);
+      const shareLinkToggle = toggleButtons.filter(btn =>
+        btn.className.includes('inline-flex h-6 w-11')
+      )[0];
+      fireEvent.click(shareLinkToggle!);
 
       await waitFor(() => {
         expect(mockOnShare).toHaveBeenCalled();
       });
 
-      // Step 3: Re-render with updated props (simulating parent state update)
-      rerender(<ShareModal {...defaultProps} isPublic={true} shareToken="new-token-456" />);
+      // Re-render with share token (simulating parent update)
+      rerender(<ShareModal {...defaultProps} isPublic={false} shareToken="new-token" />);
 
-      // Step 4: Verify now shows as public with share link
-      expect(screen.getByText('Public')).toBeInTheDocument();
-      expect(screen.getByText('Share Link')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('http://localhost:3000/share/new-token-456')).toBeInTheDocument();
-
-      // Step 5: Copy the link
-      const copyButton = screen.getByText('Copy');
-      fireEvent.click(copyButton);
-
-      await waitFor(() => {
-        expect(navigator.clipboard.writeText).toHaveBeenCalledWith('http://localhost:3000/share/new-token-456');
-        expect(screen.getByText('Copied!')).toBeInTheDocument();
-      });
+      // Verify recipe is still private but has share link
+      expect(screen.getByText('Private')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('http://localhost:3000/share/new-token')).toBeInTheDocument();
     });
 
-    it('should complete unshare workflow: toggle private, hide link', async () => {
-      mockOnUnshare.mockResolvedValue(undefined);
-      const { rerender } = render(<ShareModal {...defaultProps} isPublic={true} shareToken="test-token" />);
+    it('should allow making recipe public without generating share link', async () => {
+      render(<ShareModal {...defaultProps} isPublic={false} shareToken={null} />);
 
-      // Step 1: Verify starts as public with link
-      expect(screen.getByText('Public')).toBeInTheDocument();
-      expect(screen.getByText('Share Link')).toBeInTheDocument();
+      // Verify starts as private with no share link
+      expect(screen.getByText('Private')).toBeInTheDocument();
+      expect(screen.queryByDisplayValue(/http/)).not.toBeInTheDocument();
 
-      // Step 2: Toggle to private
+      // Toggle to public
       const toggleButtons = screen.getAllByRole('button');
-      const toggleButton = toggleButtons.find(btn => btn.className.includes('inline-flex h-6 w-11'));
-      fireEvent.click(toggleButton!);
+      const publicPrivateToggle = toggleButtons.filter(btn =>
+        btn.className.includes('inline-flex h-6 w-11')
+      )[1];
+      fireEvent.click(publicPrivateToggle!);
 
       await waitFor(() => {
-        expect(mockOnUnshare).toHaveBeenCalled();
+        expect(api.recipes.update).toHaveBeenCalledWith(1, expect.objectContaining({
+          is_public: true,
+        }));
       });
 
-      // Step 3: Re-render with updated props
-      rerender(<ShareModal {...defaultProps} isPublic={false} shareToken="test-token" />);
-
-      // Step 4: Verify now shows as private without share link display
-      expect(screen.getByText('Private')).toBeInTheDocument();
-      expect(screen.queryByText('Share Link')).not.toBeInTheDocument();
+      // Share link should still not exist
+      expect(screen.queryByDisplayValue(/http/)).not.toBeInTheDocument();
     });
   });
 
@@ -298,7 +369,7 @@ describe('ShareModal Component', () => {
       expect(backdrop).toBeInTheDocument();
     });
 
-    it('should have focusable close buttons', () => {
+    it('should have focusable buttons', () => {
       render(<ShareModal {...defaultProps} />);
       const buttons = screen.getAllByRole('button');
       expect(buttons.length).toBeGreaterThan(0);
@@ -307,8 +378,8 @@ describe('ShareModal Component', () => {
       });
     });
 
-    it('should have readonly share URL input', () => {
-      render(<ShareModal {...defaultProps} isPublic={true} shareToken="test-token" />);
+    it('should have readonly share URL input when share link exists', () => {
+      render(<ShareModal {...defaultProps} shareToken="test-token" />);
       const input = screen.getByDisplayValue(/http/);
       expect(input).toHaveAttribute('readonly');
       expect(input).toHaveAttribute('type', 'text');

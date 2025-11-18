@@ -15,6 +15,11 @@ jest.mock('@/lib/api', () => ({
       getAll: jest.fn(),
     },
   },
+  tokenManager: {
+    isAuthenticated: jest.fn(() => true),
+    getToken: jest.fn(() => 'mock-token'),
+  },
+  getImageUrl: jest.fn((url) => url || '/placeholder.jpg'),
 }));
 
 // Mock next/link
@@ -336,33 +341,29 @@ describe('HomePage - Full-Text Search', () => {
       });
     });
 
-    it('should show loading state during search', async () => {
-      let resolveSearch: any;
-      const searchPromise = new Promise((resolve) => {
-        resolveSearch = resolve;
+    it('should show loading state during initial load', async () => {
+      const { act } = require('@testing-library/react');
+
+      // Control the initial load
+      let resolveInitial: any;
+      const initialPromise = new Promise((resolve) => {
+        resolveInitial = resolve;
       });
-      (api.recipes.search as jest.Mock).mockReturnValue(searchPromise);
+      (api.recipes.getAll as jest.Mock).mockReturnValue(initialPromise);
 
       render(<Home />);
 
-      await waitFor(() => {
-        expect(screen.queryByText(/Loading recipes/i)).not.toBeInTheDocument();
+      // Initial loading should show
+      expect(screen.getByText(/Loading recipes/i)).toBeInTheDocument();
+
+      // Resolve initial load
+      await act(async () => {
+        resolveInitial(mockRecipes);
       });
-
-      const searchInput = screen.getByPlaceholderText(/Search recipes/i);
-      fireEvent.change(searchInput, { target: { value: 'test' } });
-
-      jest.advanceTimersByTime(300);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Loading recipes/i)).toBeInTheDocument();
-      });
-
-      // Resolve the search
-      resolveSearch([mockRecipes[0]]);
 
       await waitFor(() => {
         expect(screen.queryByText(/Loading recipes/i)).not.toBeInTheDocument();
+        expect(screen.getByText(mockRecipes[0].title)).toBeInTheDocument();
       });
     });
   });

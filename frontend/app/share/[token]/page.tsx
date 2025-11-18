@@ -23,6 +23,7 @@ export default function SharedRecipe({ params }: { params: Promise<{ token: stri
       try {
         setLoading(true);
         setError(null);
+        if (!token) return;
         const data = await api.recipes.getByShareToken(token);
         setRecipe(data);
       } catch (err) {

@@ -9,11 +9,12 @@ from models import Recipe, Category, Ingredient
 class TestCategoryModel:
     """Tests for Category model"""
 
-    def test_create_category(self, db_session):
+    def test_create_category(self, db_session, sample_user):
         """Test creating a category"""
         category = Category(
             name="Lunch",
-            description="Midday meals"
+            description="Midday meals",
+            user_id=sample_user.id
         )
         db_session.add(category)
         db_session.commit()
@@ -22,10 +23,14 @@ class TestCategoryModel:
         assert category.id is not None
         assert category.name == "Lunch"
         assert category.description == "Midday meals"
+        assert category.user_id == sample_user.id
 
-    def test_create_category_without_description(self, db_session):
+    def test_create_category_without_description(self, db_session, sample_user):
         """Test creating a category without description"""
-        category = Category(name="Snacks")
+        category = Category(
+            name="Snacks",
+            user_id=sample_user.id
+        )
         db_session.add(category)
         db_session.commit()
         db_session.refresh(category)
@@ -33,6 +38,7 @@ class TestCategoryModel:
         assert category.id is not None
         assert category.name == "Snacks"
         assert category.description is None
+        assert category.user_id == sample_user.id
 
     def test_query_categories(self, db_session, sample_category):
         """Test querying categories"""

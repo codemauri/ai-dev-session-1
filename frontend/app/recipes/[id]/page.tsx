@@ -28,6 +28,7 @@ export default function RecipeDetail({ params }: { params: Promise<{ id: string 
       try {
         setLoading(true);
         setError(null);
+        if (!recipeId) return;
         const data = await api.recipes.getById(parseInt(recipeId));
         setRecipe(data);
       } catch (err) {

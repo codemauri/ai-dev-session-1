@@ -46,6 +46,7 @@ export default function EditRecipe({ params }: { params: Promise<{ id: string }>
       try {
         setLoading(true);
         setError(null);
+        if (!recipeId) return;
 
         // Load recipe and categories in parallel
         const [recipeData, categoriesData] = await Promise.all([
@@ -128,7 +129,9 @@ export default function EditRecipe({ params }: { params: Promise<{ id: string }>
       carbohydrates: carbohydrates || undefined,
       fat: fat || undefined,
       rating: rating || undefined,
-      image_url: imageUrl.trim() || undefined,
+      // If uploading a file, clear the URL first (will be set by upload)
+      // Otherwise, use the current URL value
+      image_url: imageFile ? '' : (imageUrl.trim() || undefined),
       category_id: categoryId || undefined,
       ingredients: validIngredients,
     };
@@ -146,14 +149,19 @@ export default function EditRecipe({ params }: { params: Promise<{ id: string }>
       if (imageFile) {
         try {
           await api.recipes.uploadImage(parseInt(recipeId), imageFile);
+          // Upload succeeded, navigate to recipe detail
+          router.push(`/recipes/${updatedRecipe.id}`);
         } catch (uploadErr) {
           console.error('Image upload failed:', uploadErr);
-          // Don't fail the whole operation, just log the error
-          // Recipe was updated successfully, just without the uploaded image
+          setError('Recipe updated, but image upload failed: ' + (uploadErr instanceof Error ? uploadErr.message : 'Unknown error'));
+          setSaving(false);
+          // Don't redirect, let user try again
+          return;
         }
+      } else {
+        // No file to upload, just navigate
+        router.push(`/recipes/${updatedRecipe.id}`);
       }
-
-      router.push(`/recipes/${updatedRecipe.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update recipe');
       setSaving(false);
@@ -326,7 +334,7 @@ export default function EditRecipe({ params }: { params: Promise<{ id: string }>
                   Image URL (Optional)
                 </label>
                 <input
-                  type="url"
+                  type="text"
                   id="imageUrl"
                   value={imageUrl}
                   onChange={(e) => setImageUrl(e.target.value)}

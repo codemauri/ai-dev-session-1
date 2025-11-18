@@ -1,18 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Category, api } from '@/lib/api';
+import { Category, api, tokenManager } from '@/lib/api';
 
 export default function CategoriesPage() {
+  const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
 
   useEffect(() => {
+    // Redirect to login if not authenticated
+    if (!tokenManager.isAuthenticated()) {
+      router.push('/login');
+      return;
+    }
     loadCategories();
-  }, []);
+  }, [router]);
 
   async function loadCategories() {
     try {

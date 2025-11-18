@@ -277,8 +277,10 @@ describe('EditRecipe - Image Upload', () => {
       });
 
       await waitFor(() => {
-        // Should still redirect even if upload fails
-        expect(mockPush).toHaveBeenCalledWith('/recipes/456');
+        // Should NOT redirect when upload fails
+        expect(mockPush).not.toHaveBeenCalled();
+        // Should show error message
+        expect(screen.getByText(/Recipe updated, but image upload failed/i)).toBeInTheDocument();
       });
 
       // Should log error

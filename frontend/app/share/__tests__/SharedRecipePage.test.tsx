@@ -11,6 +11,7 @@ jest.mock('@/lib/api', () => ({
       getByShareToken: jest.fn(),
     },
   },
+  getImageUrl: jest.fn((url) => url || '/placeholder.jpg'),
 }));
 
 // Mock next/link

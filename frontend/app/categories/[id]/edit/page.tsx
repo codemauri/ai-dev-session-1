@@ -28,6 +28,7 @@ export default function EditCategory({ params }: { params: Promise<{ id: string 
       try {
         setLoading(true);
         setError(null);
+        if (!categoryId) return;
         const category = await api.categories.getById(parseInt(categoryId));
         setName(category.name);
         setDescription(category.description || '');

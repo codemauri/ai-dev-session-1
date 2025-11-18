@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from database import get_db
 import models
 import schemas
+from auth import get_current_user
 
 router = APIRouter(
     prefix="/api/meal-plans",
@@ -16,10 +17,11 @@ router = APIRouter(
 @router.post("", response_model=schemas.MealPlan, status_code=status.HTTP_201_CREATED)
 def create_meal_plan(
     meal_plan: schemas.MealPlanCreate,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Create a new meal plan for a specific date and meal type.
+    Create a new meal plan for a specific date and meal type (requires authentication).
     """
     # Validate recipe exists
     recipe = db.query(models.Recipe).filter(models.Recipe.id == meal_plan.recipe_id).first()
@@ -37,11 +39,12 @@ def create_meal_plan(
             detail=f"Invalid meal_type. Must be one of: {', '.join(valid_meal_types)}"
         )
 
-    # Create meal plan
+    # Create meal plan (set user_id from authenticated user)
     db_meal_plan = models.MealPlan(
         date=meal_plan.date,
         meal_type=meal_plan.meal_type.lower(),
         recipe_id=meal_plan.recipe_id,
+        user_id=current_user.id,
         notes=meal_plan.notes
     )
     db.add(db_meal_plan)
@@ -55,13 +58,14 @@ def get_meal_plans(
     start_date: Optional[date] = Query(None, description="Start date for filtering meal plans"),
     end_date: Optional[date] = Query(None, description="End date for filtering meal plans"),
     meal_type: Optional[str] = Query(None, description="Filter by meal type"),
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get meal plans with optional filtering by date range and meal type.
-    If no dates provided, returns all meal plans.
+    Get meal plans with optional filtering by date range and meal type (requires authentication).
+    Returns only meal plans belonging to the authenticated user.
     """
-    query = db.query(models.MealPlan)
+    query = db.query(models.MealPlan).filter(models.MealPlan.user_id == current_user.id)
 
     # Apply filters
     if start_date:
@@ -79,13 +83,16 @@ def get_meal_plans(
 @router.get("/week", response_model=List[schemas.MealPlan])
 def get_week_meal_plans(
     start_date: date = Query(..., description="Start date of the week"),
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Get all meal plans for a specific week (7 days starting from start_date).
+    Returns only meal plans belonging to the authenticated user.
     """
     end_date = start_date + timedelta(days=6)
     meal_plans = db.query(models.MealPlan).filter(
+        models.MealPlan.user_id == current_user.id,
         models.MealPlan.date >= start_date,
         models.MealPlan.date <= end_date
     ).order_by(models.MealPlan.date, models.MealPlan.meal_type).all()
@@ -95,10 +102,11 @@ def get_week_meal_plans(
 @router.get("/{meal_plan_id}", response_model=schemas.MealPlan)
 def get_meal_plan(
     meal_plan_id: int,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get a specific meal plan by ID.
+    Get a specific meal plan by ID (requires authentication and ownership).
     """
     meal_plan = db.query(models.MealPlan).filter(models.MealPlan.id == meal_plan_id).first()
     if not meal_plan:
@@ -106,6 +114,14 @@ def get_meal_plan(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Meal plan with id {meal_plan_id} not found"
         )
+
+    # Check ownership
+    if meal_plan.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to view this meal plan"
+        )
+
     return meal_plan
 
 
@@ -113,16 +129,24 @@ def get_meal_plan(
 def update_meal_plan(
     meal_plan_id: int,
     meal_plan_update: schemas.MealPlanUpdate,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Update an existing meal plan.
+    Update an existing meal plan (requires authentication and ownership).
     """
     db_meal_plan = db.query(models.MealPlan).filter(models.MealPlan.id == meal_plan_id).first()
     if not db_meal_plan:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Meal plan with id {meal_plan_id} not found"
+        )
+
+    # Check ownership
+    if db_meal_plan.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to update this meal plan"
         )
 
     # Validate recipe if being updated
@@ -159,16 +183,24 @@ def update_meal_plan(
 @router.delete("/{meal_plan_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_meal_plan(
     meal_plan_id: int,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Delete a meal plan.
+    Delete a meal plan (requires authentication and ownership).
     """
     db_meal_plan = db.query(models.MealPlan).filter(models.MealPlan.id == meal_plan_id).first()
     if not db_meal_plan:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Meal plan with id {meal_plan_id} not found"
+        )
+
+    # Check ownership
+    if db_meal_plan.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to delete this meal plan"
         )
 
     db.delete(db_meal_plan)

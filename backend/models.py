@@ -6,16 +6,37 @@ from database import Base
 import uuid
 
 
+class User(Base):
+    """User model for authentication"""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_admin = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships - cascade delete to remove all user data when user is deleted
+    recipes = relationship("Recipe", back_populates="user", cascade="all, delete-orphan")
+    categories = relationship("Category", back_populates="user", cascade="all, delete-orphan")
+    meal_plans = relationship("MealPlan", back_populates="user", cascade="all, delete-orphan")
+
+
 class Category(Base):
     """Category model for recipe categorization"""
     __tablename__ = "categories"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), unique=True, nullable=False, index=True)
+    name = Column(String(100), nullable=False, index=True)
     description = Column(Text, nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
-    # Relationship with recipes
+    # Relationships
     recipes = relationship("Recipe", back_populates="category")
+    user = relationship("User", back_populates="categories")
 
 
 class Recipe(Base):
@@ -39,11 +60,13 @@ class Recipe(Base):
     share_token = Column(String(36), unique=True, nullable=True, index=True)  # UUID for sharing
     search_vector = Column(Text().with_variant(TSVECTOR, "postgresql"), nullable=True)  # Full-text search vector
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Owner of the recipe (nullable for existing recipes)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationships
     category = relationship("Category", back_populates="recipes")
+    user = relationship("User", back_populates="recipes")
     ingredients = relationship("Ingredient", back_populates="recipe", cascade="all, delete-orphan")
 
 
@@ -69,9 +92,11 @@ class MealPlan(Base):
     date = Column(Date, nullable=False, index=True)
     meal_type = Column(String(20), nullable=False, index=True)  # breakfast, lunch, dinner, snack
     recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Owner of the meal plan
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    # Relationship with recipe
+    # Relationships
     recipe = relationship("Recipe")
+    user = relationship("User", back_populates="meal_plans")

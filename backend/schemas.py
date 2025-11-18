@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List
 from datetime import datetime
 from datetime import date as DateType
@@ -43,6 +43,7 @@ class CategoryUpdate(CategoryBase):
 
 class Category(CategoryBase):
     id: int
+    user_id: int
 
     class Config:
         from_attributes = True
@@ -76,6 +77,7 @@ class RecipeUpdate(RecipeBase):
 
 class Recipe(RecipeBase):
     id: int
+    user_id: Optional[int] = None  # Owner of the recipe
     share_token: Optional[str] = None  # UUID token for sharing
     created_at: datetime
     updated_at: datetime
@@ -138,9 +140,73 @@ class MealPlanUpdate(BaseModel):
 
 class MealPlan(MealPlanBase):
     id: int
+    user_id: int  # Owner of the meal plan
     created_at: datetime
     updated_at: datetime
     recipe: Optional['Recipe'] = None
 
     class Config:
         from_attributes = True
+
+
+# User Authentication Schemas
+class UserBase(BaseModel):
+    email: EmailStr = Field(..., description="User email address")
+    full_name: Optional[str] = Field(None, max_length=255, description="User's full name")
+
+
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=8, max_length=100, description="User password (min 8 characters)")
+
+
+class UserLogin(BaseModel):
+    email: EmailStr = Field(..., description="User email address")
+    password: str = Field(..., description="User password")
+
+
+class User(UserBase):
+    id: int
+    is_active: bool
+    is_admin: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserResponse(BaseModel):
+    user: User
+    access_token: str
+    token_type: str = "bearer"
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(..., min_length=1, description="Current password")
+    new_password: str = Field(..., min_length=8, max_length=100, description="New password (min 8 characters)")
+
+
+class AdminPasswordReset(BaseModel):
+    new_password: str = Field(..., min_length=8, max_length=100, description="New password (min 8 characters)")
+
+
+class AdminUserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = Field(None, max_length=255)
+    is_active: Optional[bool] = None
+    is_admin: Optional[bool] = None
+
+
+class AdminStats(BaseModel):
+    total_users: int
+    active_users: int
+    admin_users: int
+    total_recipes: int
+    public_recipes: int
+    total_meal_plans: int
+    total_categories: int

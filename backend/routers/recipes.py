@@ -9,6 +9,7 @@ from pathlib import Path
 from database import get_db
 import models
 import schemas
+from auth import get_current_user, get_current_user_optional
 
 # Configure upload directory
 UPLOAD_DIR = Path("uploads/recipes")
@@ -21,21 +22,36 @@ MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
 router = APIRouter(
     prefix="/api/recipes",
-    tags=["recipes"]
+    tags=["recipes"],
+    redirect_slashes=False  # Disable automatic redirect for trailing slashes
 )
 
 
+@router.get("", response_model=List[schemas.Recipe])
 @router.get("/", response_model=List[schemas.Recipe])
 def list_recipes(
     skip: int = 0,
     limit: int = 100,
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
+    current_user: Optional[models.User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """
-    List all recipes with optional category filter
+    List recipes with privacy filtering:
+    - Not authenticated: Only public recipes
+    - Authenticated: Public recipes + your own recipes (public or private)
     """
     query = db.query(models.Recipe)
+
+    # Apply privacy filter based on authentication
+    if current_user:
+        # Logged in: show public recipes OR recipes owned by current user
+        query = query.filter(
+            (models.Recipe.is_public == True) | (models.Recipe.user_id == current_user.id)
+        )
+    else:
+        # Not logged in: only show public recipes
+        query = query.filter(models.Recipe.is_public == True)
 
     # Apply category filter if provided
     if category_id is not None:
@@ -46,27 +62,42 @@ def list_recipes(
 
 
 @router.get("/search", response_model=List[schemas.Recipe])
+@router.get("/search/", response_model=List[schemas.Recipe])
 def search_recipes(
     q: str = Query(..., min_length=1, description="Search query"),
     skip: int = 0,
     limit: int = 100,
+    current_user: Optional[models.User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """
     Search recipes using PostgreSQL full-text search (or LIKE for SQLite)
     Searches across title, description, instructions, and ingredients
     Results are ranked by relevance (PostgreSQL only)
+    Privacy: Only searches public recipes + your own recipes (if logged in)
     """
-    from sqlalchemy import func, desc, or_
+    from sqlalchemy import func, desc, or_, and_
 
     # Check if we're using PostgreSQL or SQLite
     dialect_name = db.bind.dialect.name
+
+    # Build privacy filter
+    if current_user:
+        privacy_filter = or_(
+            models.Recipe.is_public == True,
+            models.Recipe.user_id == current_user.id
+        )
+    else:
+        privacy_filter = models.Recipe.is_public == True
 
     if dialect_name == "postgresql":
         # Use PostgreSQL full-text search
         search_query = func.plainto_tsquery('english', q)
         recipes = db.query(models.Recipe).filter(
-            models.Recipe.search_vector.op('@@')(search_query)
+            and_(
+                models.Recipe.search_vector.op('@@')(search_query),
+                privacy_filter
+            )
         ).order_by(
             desc(func.ts_rank(models.Recipe.search_vector, search_query))
         ).offset(skip).limit(limit).all()
@@ -74,23 +105,28 @@ def search_recipes(
         # Fallback to LIKE search for SQLite (used in tests)
         search_pattern = f"%{q}%"
         recipes = db.query(models.Recipe).filter(
-            or_(
-                models.Recipe.title.ilike(search_pattern),
-                models.Recipe.description.ilike(search_pattern),
-                models.Recipe.instructions.ilike(search_pattern)
+            and_(
+                or_(
+                    models.Recipe.title.ilike(search_pattern),
+                    models.Recipe.description.ilike(search_pattern),
+                    models.Recipe.instructions.ilike(search_pattern)
+                ),
+                privacy_filter
             )
         ).offset(skip).limit(limit).all()
 
     return recipes
 
 
+@router.post("", response_model=schemas.Recipe, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=schemas.Recipe, status_code=status.HTTP_201_CREATED)
 def create_recipe(
     recipe: schemas.RecipeCreate,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Create a new recipe with ingredients
+    Create a new recipe with ingredients (requires authentication)
     """
     # Validate category exists if provided
     if recipe.category_id is not None:
@@ -105,7 +141,7 @@ def create_recipe(
 
     # Create recipe (without ingredients first)
     recipe_data = recipe.model_dump(exclude={"ingredients"})
-    db_recipe = models.Recipe(**recipe_data)
+    db_recipe = models.Recipe(**recipe_data, user_id=current_user.id)
 
     try:
         db.add(db_recipe)
@@ -153,10 +189,11 @@ def get_recipe(
 def update_recipe(
     recipe_id: int,
     recipe_update: schemas.RecipeUpdate,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Update a recipe and its ingredients
+    Update a recipe and its ingredients (requires authentication and ownership)
     """
     db_recipe = db.query(models.Recipe).filter(models.Recipe.id == recipe_id).first()
 
@@ -164,6 +201,13 @@ def update_recipe(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Recipe with ID {recipe_id} not found"
+        )
+
+    # Check ownership
+    if db_recipe.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to update this recipe"
         )
 
     # Validate category exists if provided
@@ -213,10 +257,12 @@ def update_recipe(
 @router.delete("/{recipe_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_recipe(
     recipe_id: int,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Delete a recipe (ingredients will be deleted automatically due to cascade)
+    Delete a recipe (requires authentication and ownership)
+    Ingredients will be deleted automatically due to cascade.
     """
     db_recipe = db.query(models.Recipe).filter(models.Recipe.id == recipe_id).first()
 
@@ -224,6 +270,13 @@ def delete_recipe(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Recipe with ID {recipe_id} not found"
+        )
+
+    # Check ownership
+    if db_recipe.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to delete this recipe"
         )
 
     try:
@@ -241,10 +294,13 @@ def delete_recipe(
 @router.post("/{recipe_id}/share", response_model=schemas.Recipe)
 def generate_share_token(
     recipe_id: int,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Generate a share token for a recipe and make it public
+    Generate a share link for a recipe (requires authentication and ownership)
+    Creates a unique token that allows anyone with the link to view the recipe
+    Note: This is independent of is_public - recipe can be private but still shareable via link
     """
     db_recipe = db.query(models.Recipe).filter(models.Recipe.id == recipe_id).first()
 
@@ -254,13 +310,22 @@ def generate_share_token(
             detail=f"Recipe with ID {recipe_id} not found"
         )
 
+    # Check ownership
+    if db_recipe.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to share this recipe"
+        )
+
     try:
         # Generate a new share token if one doesn't exist
         if not db_recipe.share_token:
             db_recipe.share_token = str(uuid.uuid4())
 
-        # Make recipe public
-        db_recipe.is_public = True
+        # NOTE: We do NOT set is_public here
+        # is_public controls list/search visibility
+        # share_token controls link-based access
+        # These are independent features
 
         db.commit()
         db.refresh(db_recipe)
@@ -276,10 +341,13 @@ def generate_share_token(
 @router.post("/{recipe_id}/unshare", response_model=schemas.Recipe)
 def remove_share(
     recipe_id: int,
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Make a recipe private (unshare it)
+    Revoke share link for a recipe (requires authentication and ownership)
+    Clears the share token, making the share link no longer work
+    Note: This does NOT affect is_public - recipe visibility in lists/searches is independent
     """
     db_recipe = db.query(models.Recipe).filter(models.Recipe.id == recipe_id).first()
 
@@ -289,9 +357,19 @@ def remove_share(
             detail=f"Recipe with ID {recipe_id} not found"
         )
 
+    # Check ownership
+    if db_recipe.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to unshare this recipe"
+        )
+
     try:
-        # Make recipe private
-        db_recipe.is_public = False
+        # Clear the share token to revoke the share link
+        db_recipe.share_token = None
+
+        # NOTE: We do NOT set is_public here
+        # is_public controls list/search visibility (independent feature)
 
         db.commit()
         db.refresh(db_recipe)
@@ -308,10 +386,11 @@ def remove_share(
 async def upload_recipe_image(
     recipe_id: int,
     file: UploadFile = File(...),
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Upload an image for a recipe
+    Upload an image for a recipe (requires authentication and ownership)
     Validates file type and size, saves to uploads directory
     Returns updated recipe with image_url set
     """
@@ -321,6 +400,13 @@ async def upload_recipe_image(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Recipe with ID {recipe_id} not found"
+        )
+
+    # Check ownership
+    if db_recipe.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to upload images for this recipe"
         )
 
     # Validate file extension
